@@ -10,8 +10,8 @@ def map_range(value, in_min, in_max, out_min, out_max):
 
 async def main():
   try:
-    user = "taro.bense@gmail.com"
-    pswd = "T@ro2004"
+    user = ""
+    pswd = ""
     bulb_ip = "192.168.1.94"
     plug_ip = "192.168.1.92"
 

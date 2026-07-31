@@ -3,7 +3,7 @@ import asyncio
 import creds
 
 async def main():
-  dev = await Discover.discover_single(creds.ip_add,
+  dev = await Discover.discover_single(creds.ip_bulb,
                   username=creds.username,
                   password=creds.password)
 

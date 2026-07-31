@@ -9,7 +9,7 @@ lamp_config = None   # Saved lamp configuration for fast connection
 
 async def getLampConfig():
   global lamp_config
-  light_ip = "192.168.1.94"
+  light_ip = creds.ip_bulb
   username = creds.username
   password = creds.password
   dev = await Discover.discover_single(light_ip, username=username, password=password)

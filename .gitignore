@@ -1,3 +1,6 @@
 venv01
 lab01/creds.py
+lab02/creds.py
 workingdir
+__*
+*.code-workspace

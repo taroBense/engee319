@@ -1,6 +1,7 @@
 import time
 import asyncio
 from kasa import Discover
+import creds
 
 def map_range(value, in_min, in_max, out_min, out_max):
   # Clamp input to min/max range
@@ -10,8 +11,8 @@ def map_range(value, in_min, in_max, out_min, out_max):
 
 async def main():
   try:
-    user = ""
-    pswd = ""
+    user = creds.username
+    pswd = creds.password
     bulb_ip = "192.168.1.94"
     plug_ip = "192.168.1.92"
 

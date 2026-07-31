@@ -1,2 +1,5 @@
 # ENGEE319
-git repo for lab programs and exercises
+
+## Requirements
+All python packages can be installed with pip
+`pip install -r requirements.txt`

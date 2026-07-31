@@ -5,6 +5,8 @@ All python packages can be installed with pip
 ```bash
 pip install -r requirements.txt
 ```
+Linux Packages
+[TODO]
 
 ## Equipment
 - TP Link Tapo P110m Smart Plug

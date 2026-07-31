@@ -4,3 +4,5 @@ lab02/creds.py
 workingdir
 __*
 *.code-workspace
+*.wav
+test-*

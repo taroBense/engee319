@@ -2,7 +2,7 @@ from kasa import Discover
 import asyncio
 import creds
 
-async def main():
+async def main(): 
   dev = await Discover.discover_single(creds.ip_bulb,
                   username=creds.username,
                   password=creds.password)

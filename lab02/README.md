@@ -5,7 +5,7 @@
 - - (Tested with Tapo L530 as well)
 
 ### Packages
-see `requirements.txt`
+see [requirements](requirements.txt)
 
 ## Task 3
 ```python

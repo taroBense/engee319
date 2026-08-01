@@ -87,13 +87,15 @@ def processMessage(text):
 
   print(f"Gemini output: {answer}")
 
-  answer = answer.split(",")
-
-  red = int(answer[0])
-  green = int(answer[1])
-  blue = int(answer[2])
-
-  updateColours()
+  try:
+    rgb_vals = [int(colour.strip()) for colour in answer.split(",")]
+    if len(rgb_vals) == 3:
+      red, green, blue = rgb_vals
+      updateColours()
+    else:
+      print("Received invalid RGB tuple structure from Gemini.")
+  except ValueError:
+    print("Could not parse integer RGB values from Gemini output.")
 
 def waitForInput():
   while True:

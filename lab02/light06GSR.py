@@ -102,10 +102,12 @@ def waitForInput():
     audio = listen()
     text = recognize(audio)
     print(f"I heard: {text}")
-    processMessage(text)
+    
     if text.find('exit') >= 0:
       print("Stopping")
-      return None
+      break
+
+    processMessage(text)
 
 # Start with GUI set correctly
 updateColours()

@@ -14,12 +14,9 @@ changeHandler = None
 def updateColours():
     global red, green, blue
     global changeHandler
-    if red < 0:     red = 0
-    if red > 100:   red = 100
-    if green < 0:   green = 0
-    if green > 100: green = 100
-    if blue < 0:    blue = 0
-    if blue > 100:  blue = 100
+    red = max(0, min(100, red))
+    green = max(0, min(100, green))
+    blue = max(0, min(100, blue))
     text = "set R G B to " + str(red) + " " + str(green) + " " + str(blue)
     call(["espeak", "-s200 -ven -z", text])
 

@@ -14,9 +14,11 @@ changeHandler = None
 def updateColours():
     global red, green, blue
     global changeHandler
+
     red = max(0, min(100, red))
     green = max(0, min(100, green))
     blue = max(0, min(100, blue))
+
     text = "set R G B to " + str(red) + " " + str(green) + " " + str(blue)
     call(["espeak", "-s200 -ven -z", text])
 
@@ -67,6 +69,9 @@ def recognize(audio):
 
 def processMessage(text):
   global red, green, blue
+
+  if not text.strip():
+    return
 
   my_instructions = """
 	I have a lamp which can be set by giving red green and blue light levels

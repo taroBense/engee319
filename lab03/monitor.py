@@ -15,7 +15,7 @@ UPLOAD_INTVL = 15  # s: ThingSpeak free-tier minimum
 GPIO.setwarnings(False)
 GPIO.setmode(GPIO.BCM)
 GPIO.setup(RELAY_PIN, GPIO.OUT)
-# Change RELAY_STATE to complete the Observation Table.
+# Change RELAY_STATE to complete the Observation Table
 # GPIO.HIGH = Relay Closed GPIO.LOW = Relay Open
 RELAY_STATE = GPIO.HIGH
 GPIO.output(RELAY_PIN, RELAY_STATE)

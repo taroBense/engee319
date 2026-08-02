@@ -14,3 +14,6 @@ see [requirements](../requirements.txt)
 ![circuit](circuit.png)
 
 Circuit Wiring Diagram
+
+## Task 2
+`monitor.py`

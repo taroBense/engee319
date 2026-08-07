@@ -30,9 +30,13 @@ ina.configure(
 )
 last_upload = 0.0
 
+v = ina.voltage()
+i = ina.current()
+p = v * (i / 1000.0)
+
 
 def upload(v, i, p):
-    global last_upload
+    global last_upload, RELAY_STATE
 
     if time() - last_upload < UPLOAD_INTVL:
         return
@@ -53,6 +57,11 @@ def upload(v, i, p):
     except requests.RequestException:
         pass
 
+    if RELAY_STATE == GPIO.LOW:
+        state_str = "OPEN"
+    elif RELAY_STATE == GPIO.HIGH:
+        state_str = "CLOSED"
+
     print(f"Monitoring. Relay: {state_str}. Ctrl+C to stop.")
 
     try:
@@ -63,7 +72,12 @@ def upload(v, i, p):
             print(f"Relay:{state_str} | V={v:.3f}V | I={i:.1f}mA | P={p:.4f}W")
             upload(v, i, p)
             sleep(0.5)
+
     except KeyboardInterrupt:
         GPIO.output(RELAY_PIN, GPIO.LOW)
         GPIO.cleanup()
         print("Relay opened safely.")
+        break
+
+
+upload(v, i, p)

@@ -51,23 +51,36 @@ def manage_load(v):
     # Smart-home rule: allow loads only when the battery has charge to spare.
     # Returns a numeric code (0/1/2) so it can be charted on ThingSpeak.
     if v >= V_LOAD_OK:
-        load_on();  return LOAD_ON     # 1
+        load_on()
+        return LOAD_ON     # 1
+
     if v < V_LOAD_CUT:
-        load_off(); return LOAD_OFF    # 0
+        load_off()
+        return LOAD_OFF    # 0
+
     return LOAD_HOLD                   # 2 (between cut and ok: leave loads as they are)
 
 def upload(v, i, p, status, load):
     # status (field4) and load (field5) are both numeric codes.
     global last_upload
+
     if time() - last_upload < UPLOAD_INTVL:
         return
+
     params = {"api_key": API_KEY,
-              "field1": round(v, 3), "field2": round(i, 1),
-              "field3": round(p, 4), "field4": status, "field5": load}
+              "field1": round(v, 3),
+              "field2": round(i, 1),
+              "field3": round(p, 4),
+              "field4": status,
+              "field5": load
+              }
+
     try:
         r = requests.get(TS_URL, params=params, timeout=8)
+
         if r.ok:
             last_upload = time()
+
     except requests.RequestException:
         pass
 

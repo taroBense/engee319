@@ -17,7 +17,7 @@ GPIO.setmode(GPIO.BCM)
 GPIO.setup(RELAY_PIN, GPIO.OUT)
 # Change RELAY_STATE to complete the Observation Table
 # GPIO.HIGH = Relay Closed GPIO.LOW = Relay Open
-RELAY_STATE = GPIO.HIGH
+RELAY_STATE = GPIO.LOW
 GPIO.output(RELAY_PIN, RELAY_STATE)
 state_str = "CLOSED" if RELAY_STATE == GPIO.HIGH else "OPEN"
 ina = INA219(shunt_ohms=0.1, max_expected_amps=3.0, busnum=1, address=0x40)

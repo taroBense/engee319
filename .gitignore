@@ -3,6 +3,7 @@ release-env
 lab01/creds.py
 lab02/creds.py
 lab03/creds.py
+lab04/creds.py
 workingdir
 __*
 *.code-workspace

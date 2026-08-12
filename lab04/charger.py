@@ -8,10 +8,10 @@ import datetime, requests
 import creds
 
 # —— Thresholds (NiMH 7S: 7 x 1.4V full = 9.8V, 7 x 1.2V nominal = 8.4V) ——
-V_FULL       = 9.8    # V: stop charging at/above this (battery full)
-V_LOW        = 8.4    # V: attempt to charge below this (nominal)
-V_LOAD_OK    = 8.6    # V: loads allowed at/above this
-V_LOAD_CUT   = 8.0    # V: loads cut off below this (protect battery)
+V_FULL       = 6    # V: stop charging at/above this (battery full)
+V_LOW        = 4    # V: attempt to charge below this (nominal)
+V_LOAD_OK    = 1.5    # V: loads allowed at/above this
+V_LOAD_CUT   = 1.5    # V: loads cut off below this (protect battery)
 I_MIN        = 10.0   # mA: below this means no usable solar
 
 CHARGE_PIN   = 18     # BCM 18 = Relay 1 (charge control)

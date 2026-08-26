@@ -18,3 +18,6 @@ Programs to output Smart Plug readings
 
 ### Lab 2
 Development of modern HMI for Smart IoT system. The developed HMI uses genAI agents and speech recognition for control.
+
+### Solar Panel
+Get output from clear sky model

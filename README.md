@@ -5,7 +5,7 @@ All python packages can be installed with pip
 ```bash
 pip install -r requirements.txt
 ```
-Linux Packages
+## Linux Packages
 [TODO]
 
 ## Equipment

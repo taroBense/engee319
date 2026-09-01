@@ -15,11 +15,11 @@ times = pd.date_range(
 surface_tilt = 30
 surface_azimuth = 0  # North = 0° in pvlib
 
-# 2. Get Solar Position & Clear-Sky Data
+# Get Solar Position & Clear-Sky Data
 solpos = site.get_solarposition(times)
 clearsky = site.get_clearsky(times, model="ineichen")
 
-# 3. Calculate Plane of Array (POA) Irradiance
+# Calculate Plane of Array (POA) Irradiance
 poa_irrad = pvlib.irradiance.get_total_irradiance(
     surface_tilt=surface_tilt,
     surface_azimuth=surface_azimuth,
@@ -30,18 +30,18 @@ poa_irrad = pvlib.irradiance.get_total_irradiance(
     dhi=clearsky["dhi"],
 )
 
-# 4. Simple Power Output Estimate (Assuming a 5 kW array at ~20% system efficiency)
-array_kw_rating = 5.0
+# Power Output Estimate
+array_kw_rating = 0.012
 power_output_watts = poa_irrad["poa_global"] * array_kw_rating
 
-# 5. Determine Optimal Action Windows
+# Controller state control
 df = pd.DataFrame(
     {"POA_Irradiance": poa_irrad["poa_global"], "Estimated_W": power_output_watts}
 )
-df["Action"] = "Grid / Battery"
-df.loc[df["Estimated_W"] > 1500, "Action"] = "Run Heavy Appliances / Charge Battery"
+# df["Action"] = "Grid / Battery"
+# df.loc[df["Estimated_W"] > 1500, "Action"] = "Run Heavy Appliances / Charge Battery"
 
-# 6. Plot solar production and decision windows
+# Plots
 fig, axes = plt.subplots(2, 1, figsize=(12, 8), sharex=True)
 
 axes[0].plot(df.index, df["POA_Irradiance"], color="tab:orange", linewidth=1.5)

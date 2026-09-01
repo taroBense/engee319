@@ -77,7 +77,8 @@ def upload(v, i, p):
         GPIO.output(RELAY_PIN, GPIO.LOW)
         GPIO.cleanup()
         print("Relay opened safely.")
-        break
+
+        return None
 
 
 upload(v, i, p)

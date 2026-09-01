@@ -1,4 +1,5 @@
 venv01
+*env*
 release-env
 lab01/creds.py
 lab02/creds.py

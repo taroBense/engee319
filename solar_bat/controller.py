@@ -15,7 +15,7 @@ consumption = load.get_load_power()
 V_FULL       = 8.6    # V: stop charging at/above this (battery full)
 V_LOW        = 7.2    # V: attempt to charge below this (nominal)
 V_LOAD_OK    = 7.2    # V: loads allowed at/above this
-V_LOAD_CUT   = 7   # V: loads cut off below this (protect battery)
+V_LOAD_CUT   = 7      # V: loads cut off below this (protect battery)
 I_MIN        = 10.0   # mA: below this means no usable solar
 
 CHARGE_PIN   = 18     # BCM 18 = Relay 1 (charge control)

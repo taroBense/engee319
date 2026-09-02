@@ -10,3 +10,4 @@ __*
 *.code-workspace
 *.wav
 test-*
+solar_bat/ml_solar_pred.ipynb

@@ -35,7 +35,7 @@ poa_irrad = pvlib.irradiance.get_total_irradiance(
 )
 
 # Power Output Estimate
-array_kw_rating = 0.012
+array_kw_rating = 0.005
 power_output_watts = poa_irrad["poa_global"] * array_kw_rating
 
 # Controller state control

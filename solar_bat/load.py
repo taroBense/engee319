@@ -1,8 +1,9 @@
 import numpy as np
-# [TODO] save generation and consumption data to CSV for later use in ML model training
+import pandas as pd
+import os
 
-# Base load power pattern in Wh for each hour of the day
-base_load_power = {
+# Mean load power pattern in Wh for each hour of the day
+mean_load_power = {
     "00:00": 0.5,      # Midnight - minimal load
     "01:00": 0.3,      # 1 AM - low load
     "02:00": 0.2,      # 2 AM - low load
@@ -29,18 +30,29 @@ base_load_power = {
     "23:00": 1.0,      # 11 PM - late night load
 }
 
-def get_load_power(variance=0.15):
+def get_load_power(variance=0.2):
     load_power = {}
-    for time, base_value in base_load_power.items():
-        # Add Gaussian random variation to base load
-        noise = np.random.normal(0, base_value * variance)
-        # Ensure load never goes negative
-        load_power[time] = max(0.0, base_value + noise)
-    
+    for time, mean_value in mean_load_power.items():
+        noise = np.random.normal(0, mean_value * variance)
+        load_power[time] = max(0.0, mean_value + noise)
+
     return load_power
 
+def save_load_profile_to_csv(load_profile, filename="consumption_data.csv"):
+    df = pd.DataFrame(list(load_profile.items()), columns=["Time", "Load_Power_W"])
+    df.index = pd.Index([pd.Timestamp.now().date()] * len(df), name="Date")
+    file_exists = os.path.exists(filename) and os.path.getsize(filename) > 0
+
+    if file_exists and list(pd.read_csv(filename, nrows=0).columns) == ["Time", "Load_Power_W"]:
+        existing_df = pd.read_csv(filename)
+        existing_df.insert(0, "Date", pd.NA)
+        existing_df.to_csv(filename, index=False)
+
+    df.to_csv(filename, mode="a", header=not file_exists, index=True)
+    print(f"Load profile saved to {filename}")
+
 if __name__ == "__main__":
-    # Example usage
     load_profile = get_load_power()
+    save_load_profile_to_csv(load_profile)
     for time, power in load_profile.items():
-        print(f"{time}: {power:.2f} Wh")
+        print(f"{time}: {power:.2f} W")

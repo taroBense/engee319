@@ -7,19 +7,24 @@ import creds
 import clearsky_solar_pred
 import load
 
-# input and output data from solar prediction and load modules
-generation = clearsky_solar_pred.get_power_output()
-consumption = load.get_load_power()
+MIN_POWER_THRESHOLD = 1
 
 # —— Thresholds (NiMH 7S: 6 x 1.4V, 6 x 1.2V nominal = 8.4V) ——
 V_FULL       = 8.6    # V: stop charging at/above this (battery full)
 V_LOW        = 7.2    # V: attempt to charge below this (nominal)
 V_LOAD_OK    = 7.2    # V: loads allowed at/above this
 V_LOAD_CUT   = 7      # V: loads cut off below this (protect battery)
-I_MIN        = 10.0   # mA: below this means no usable solar
+V_MIN        = 0.5    # V: minimum valid voltage reading from ADC
 
-CHARGE_PIN   = 18     # BCM 18 = Relay 1 (charge control)
-LOAD_PIN     = 23     # BCM 23 = Relay 2 (load control)
+# 3 optocoupler outputs
+CHARGE_PIN   = 18     # BCM 18 = Optocoupler 1 (charge control)
+LOAD_PIN     = 23     # BCM 23 = Optocoupler 2 (load control)
+AUX_PIN      = 24     # BCM 24 = Optocoupler 3 (auxiliary control output)
+
+# 2 INA219 I2C sensors
+BAT_SENSOR_ADDR = 0x40
+PV_SENSOR_ADDR  = 0x41
+
 INTERVAL     = 5.0    # s: normal loop period
 SLEEP_NOSUN  = 60     # s: pause after No Sun detection
 PROBE_DELAY  = 2.0    # s: settle time after closing charge relay
@@ -37,19 +42,48 @@ GPIO.setwarnings(False)
 GPIO.setmode(GPIO.BCM)
 GPIO.setup(CHARGE_PIN, GPIO.OUT)
 GPIO.setup(LOAD_PIN, GPIO.OUT)
+GPIO.setup(AUX_PIN, GPIO.OUT)
 GPIO.output(CHARGE_PIN, GPIO.LOW)   # charge relay OPEN on startup (safe)
-GPIO.output(LOAD_PIN, GPIO.LOW)   # load relay OPEN on startup (safe)
+GPIO.output(LOAD_PIN, GPIO.LOW)      # load relay OPEN on startup (safe)
+GPIO.output(AUX_PIN, GPIO.LOW)       # aux relay OPEN on startup (safe)
 
-ina = INA219(shunt_ohms=0.1, max_expected_amps=3.0, busnum=1, address=0x40)
-ina.reset()
-ina.configure(voltage_range=ina.RANGE_32V, gain=ina.GAIN_AUTO,
-              bus_adc=ina.ADC_4SAMP, shunt_adc=ina.ADC_4SAMP)
+# INA219 voltage/current monitors
+try:
+    bat_sensor = INA219(shunt_ohms=0.1, max_expected_amps=3.0, busnum=1, address=BAT_SENSOR_ADDR)
+    pv_sensor = INA219(shunt_ohms=0.1, max_expected_amps=3.0, busnum=1, address=PV_SENSOR_ADDR)
+
+    bat_sensor.reset(); pv_sensor.reset()
+    bat_sensor.configure(voltage_range=bat_sensor.RANGE_32V, gain=bat_sensor.GAIN_AUTO,
+                        bus_adc=bat_sensor.ADC_4SAMP, shunt_adc=bat_sensor.ADC_4SAMP)
+    pv_sensor.configure(voltage_range=pv_sensor.RANGE_32V, gain=pv_sensor.GAIN_AUTO,
+                       bus_adc=pv_sensor.ADC_4SAMP, shunt_adc=pv_sensor.ADC_4SAMP)
+    sensor_ready = True
+except Exception:
+    bat_sensor = None
+    pv_sensor = None
+    sensor_ready = False
+
 last_upload = 0.0
 
 def charge_open():  GPIO.output(CHARGE_PIN, GPIO.LOW)
 def charge_close(): GPIO.output(CHARGE_PIN, GPIO.HIGH)
 def load_on():      GPIO.output(LOAD_PIN, GPIO.HIGH)
 def load_off():     GPIO.output(LOAD_PIN, GPIO.LOW)
+def aux_on():       GPIO.output(AUX_PIN, GPIO.HIGH)
+def aux_off():      GPIO.output(AUX_PIN, GPIO.LOW)
+
+def read_voltage_sensor(sensor):
+    """Read the bus voltage from an INA219 sensor."""
+    if sensor is None:
+        return 0.0
+
+    try:
+        v = sensor.voltage()
+        if v < V_MIN:
+            return 0.0
+        return v
+    except Exception:
+        return 0.0
 
 def manage_load(v):
     # Smart-home rule: allow loads only when the battery has charge to spare.
@@ -64,19 +98,26 @@ def manage_load(v):
 
     return LOAD_HOLD                   # 2 (between cut and ok: leave loads as they are)
 
-def upload(v, i, p, status, load):
-    # status (field4) and load (field5) are both numeric codes.
+def get_inputs():
+    """Read the current solar forecast and current-hour load estimate."""
+    generation = clearsky_solar_pred.get_power_output()
+    load_profile = load.get_load_power()
+    current_hour = datetime.datetime.now().strftime("%H:00")
+    consumption = load_profile.get(current_hour, 0.0)
+    return generation, consumption
+
+def upload(v_bat, v_pv, status, load):
+    """Upload battery voltage, PV voltage, controller state and relay state."""
     global last_upload
 
     if time() - last_upload < UPLOAD_INTVL:
         return
 
     params = {"api_key": API_KEY,
-              "field1": round(v, 3),
-              "field2": round(i, 1),
-              "field3": round(p, 4),
-              "field4": status,
-              "field5": load
+              "field1": round(v_bat, 3),
+              "field2": round(v_pv, 3),
+              "field3": status,
+              "field4": load,
               }
 
     try:
@@ -96,32 +137,61 @@ print("Controller running. Ctrl+C to stop.")
 def main():
     try:
         while True:
-            charge_open(); sleep(0.5)
-            v_bat = ina.voltage()
-            # Mock mode: comment out the line above, uncomment below for testing.
-            # v_bat = float(input("Mock voltage (V): "))
-            load = manage_load(v_bat)            # numeric load decision every loop
+            charge_open()
+            aux_off()
+            sleep(0.5)
+
+            v_bat = read_voltage_sensor(bat_sensor)
+            v_pv = read_voltage_sensor(pv_sensor)
+            generation, consumption = get_inputs()
+            net_power = generation - consumption
+
+            # Mock mode: uncomment below if no INA219 hardware is connected.
+            # v_bat = float(input("Mock battery voltage (V): "))
+            # v_pv = float(input("Mock PV voltage (V): "))
+
+            load_state = manage_load(v_bat)
             now = ts()
 
             if v_bat >= V_FULL:
-                print(f"[{now}] V={v_bat:.3f}V [Full/Standby] {LOAD_NAME[load]}")
-                upload(v_bat, 0, 0, 2, load); sleep(INTERVAL); continue
+                print(f"[{now}] Vbat={v_bat:.3f}V Vpv={v_pv:.3f}V "
+                      f"Generation={generation:.2f}W Load={consumption:.2f}W "
+                      f"Net={net_power:.2f}W [Full/Standby] {LOAD_NAME[load_state]}")
+                aux_off()
+                upload(v_bat, v_pv, 2, load_state)
+                sleep(INTERVAL)
+                continue
 
             if v_bat < V_LOW:
                 charge_close(); sleep(PROBE_DELAY)
-                v = ina.voltage(); i = ina.current(); p = v * (i / 1000)
-                if i < I_MIN:
+                v_bat = read_voltage_sensor(bat_sensor)
+                v_pv = read_voltage_sensor(pv_sensor)
+
+                if v_pv <= V_MIN or net_power < MIN_POWER_THRESHOLD:
                     charge_open()
-                    print(f"[{now}] V={v:.3f}V I={i:.1f}mA [No Sun/Standby] {LOAD_NAME[load]}")
-                    upload(v, i, p, 0, load); sleep(SLEEP_NOSUN); continue
-                print(f"[{now}] V={v:.3f}V I={i:.1f}mA P={p:.4f}W [Charging] {LOAD_NAME[load]}")
-                upload(v, i, p, 1, load); sleep(INTERVAL)
+                    print(f"[{now}] Vbat={v_bat:.3f}V Vpv={v_pv:.3f}V "
+                          f"Generation={generation:.2f}W Load={consumption:.2f}W "
+                          f"Net={net_power:.2f}W [No Surplus/Standby] {LOAD_NAME[load_state]}")
+                    aux_off()
+                    upload(v_bat, v_pv, 0, load_state)
+                    sleep(SLEEP_NOSUN)
+                    continue
+
+                aux_on()
+                print(f"[{now}] Vbat={v_bat:.3f}V Vpv={v_pv:.3f}V "
+                    f"Generation={generation:.2f}W Load={consumption:.2f}W "
+                    f"Net={net_power:.2f}W [Charging] {LOAD_NAME[load_state]}")
+                upload(v_bat, v_pv, 1, load_state)
+                sleep(INTERVAL)
             else:
-                print(f"[{now}] V={v_bat:.3f}V [Monitoring] {LOAD_NAME[load]}")
-                upload(v_bat, 0, 0, 3, load); sleep(INTERVAL)
+                print(f"[{now}] Vbat={v_bat:.3f}V Vpv={v_pv:.3f}V "
+                    f"Generation={generation:.2f}W Load={consumption:.2f}W "
+                    f"Net={net_power:.2f}W [Monitoring] {LOAD_NAME[load_state]}")
+                upload(v_bat, v_pv, 3, load_state)
+                sleep(INTERVAL)
 
     except KeyboardInterrupt:
-        charge_open(); load_off(); GPIO.cleanup()
+        charge_open(); load_off(); aux_off(); GPIO.cleanup()
         print("Relays opened. Controller stopped.")
 
 if __name__ == "__main__":

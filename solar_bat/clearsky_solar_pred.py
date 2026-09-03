@@ -6,13 +6,16 @@ import requests
 import numpy as np
 from datetime import datetime
 import warnings
+# import scienceplots
+
+# plt.style.use(['science','ieee'])
 
 warnings.filterwarnings("ignore")
 
 # Hamilton Info + Time of prediction period
 site = Location(-37.7870, 175.2793, tz="Pacific/Auckland", altitude=40)
 times = pd.date_range(
-    "2026-08-30 00:00", "2026-09-06 23:00", freq="15min", tz="Pacific/Auckland"
+    "2026-09-03 00:00", "2026-09-06 23:00", freq="15min", tz="Pacific/Auckland"
 )
 
 # Panel Config (e.g., 30° tilt, North-facing / 0° azimuth for Southern Hemisphere)
@@ -54,7 +57,7 @@ def get_weather_forecast(lat, lon, days=30):
         params = {
             "latitude": lat,
             "longitude": lon,
-            "start_date": "2026-08-30",
+            "start_date": "2026-09-03",
             "end_date": "2026-09-06",
             "hourly": ["cloud_cover", "precipitation", "weather_code"],
             "timezone": "Pacific/Auckland",
@@ -74,7 +77,7 @@ def get_weather_forecast(lat, lon, days=30):
         )
 
         weather_df.set_index("time", inplace=True)
-        return weather_df
+        return standardize_timezone_index(weather_df)
 
     except Exception as e:
         print(f"Warning: Could not fetch weather data: {e}")
@@ -82,13 +85,24 @@ def get_weather_forecast(lat, lon, days=30):
         return generate_synthetic_weather(lat, lon)
 
 
-def generate_synthetic_weather(lat, lon, num_days=7):
+def standardize_timezone_index(df):
+    """Ensure datetime index is timezone-aware in the local timezone."""
+    df = df.copy()
+    df.index = pd.to_datetime(df.index)
+    if df.index.tz is None:
+        df.index = df.index.tz_localize("Pacific/Auckland")
+    else:
+        df.index = df.index.tz_convert("Pacific/Auckland")
+    return df
+
+
+def generate_synthetic_weather(lat, lon, num_days=5):
     """
     Generate synthetic but realistic weather data for solar prediction.
     Based on typical weather patterns for Hamilton, NZ (Spring weather).
     """
     dates = pd.date_range(
-        "2026-08-30", periods=num_days * 24, freq="h", tz="Pacific/Auckland"
+        "2026-09-03", periods=num_days * 24, freq="h", tz="Pacific/Auckland"
     )
 
     # Cloud cover pattern (more clouds in morning/evening)
@@ -130,33 +144,32 @@ def apply_weather_adjustments(irradiance, weather_df):
     - Cloud cover reduces direct irradiance
     - Precipitation cleans panels (improves efficiency)
     """
-    adjusted_irradiance = irradiance.copy()
+    weather_aligned = weather_df.reindex(irradiance.index).interpolate(method="time")
+    weather_aligned = weather_aligned.ffill().bfill()
 
     # Cloud cover adjustment (0-100% -> 1.0-0.1 multiplier)
-    cloud_factor = 1.0 - (weather_df["cloud_cover"] / 100 * 0.85)
-    cloud_factor = np.maximum(cloud_factor, 0.05)  # Minimum 5% on very cloudy days
+    cloud_factor = 1.0 - (weather_aligned["cloud_cover"] / 100 * 0.85)
+    cloud_factor = np.maximum(cloud_factor.to_numpy(), 0.05)
 
     # Soiling factor (precipitation cleans panels, dust increases over time)
-    soiling = (
-        0.98 - (np.arange(len(weather_df)) / len(weather_df)) * 0.05
-    )  # Gradual soiling
-    rain_factor = (
-        1.0 + (weather_df["precipitation"] > 0).astype(float) * 0.02
-    )  # Cleaning effect
+    soiling = 0.98 - (np.arange(len(weather_aligned)) / max(len(weather_aligned), 1)) * 0.05
+    rain_factor = 1.0 + (weather_aligned["precipitation"] > 0).astype(float).to_numpy() * 0.02
 
     # Combine all factors
     total_factor = cloud_factor * soiling * rain_factor
-    adjusted_irradiance = irradiance * total_factor
+    adjusted_irradiance = irradiance.to_numpy() * total_factor
 
-    return adjusted_irradiance
+    return pd.Series(adjusted_irradiance, index=irradiance.index, name=irradiance.name)
 
 
 # Fetch/Generate weather data
 print("Fetching weather data...")
-weather_data = get_weather_forecast(site.latitude, site.longitude)
+weather_data = standardize_timezone_index(get_weather_forecast(site.latitude, site.longitude))
 
-# Resample weather data to match 15-min solar data resolution
+# Resample weather data to match 15-min solar data resolution and align timestamps
 weather_resampled = weather_data.resample("15min").interpolate(method="linear")
+weather_resampled = weather_resampled.reindex(poa_irrad["poa_global"].index)
+weather_resampled = weather_resampled.interpolate(method="time").ffill().bfill()
 
 # Apply weather adjustments to irradiance
 adjusted_poa_irrad = apply_weather_adjustments(
@@ -174,6 +187,22 @@ df["Adjusted_Power_W"] = adjusted_power_watts
 df["Weather_Factor"] = adjusted_poa_irrad / (
     poa_irrad["poa_global"] + 1e-6
 )
+
+
+def get_power_output(timestamp=None):
+    """Return the weather-adjusted solar power forecast in watts."""
+    if timestamp is None:
+        timestamp = pd.Timestamp.now(tz=site.tz)
+    else:
+        timestamp = pd.Timestamp(timestamp)
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.tz_localize(site.tz)
+        else:
+            timestamp = timestamp.tz_convert(site.tz)
+
+    timestamp = min(max(timestamp, df.index[0]), df.index[-1])
+    forecast_index = df.index.get_indexer([timestamp], method="nearest")[0]
+    return float(df["Adjusted_Power_W"].iloc[forecast_index])
 
 print(f"Weather prediction added with {len(weather_data)} hourly records")
 print(f"\nWeather Data Summary:")
@@ -202,6 +231,7 @@ ax.plot(
     linewidth=2,
     color="orange",
 )
+ax.axhline(2 / 1000, color="red", linestyle="--", linewidth=1.5, label="Minimum Power (2 W)")
 ax.fill_between(df.index, 0, df["Adjusted_Power_W"] / 1000, alpha=0.2, color="orange")
 ax.set_ylabel("Power Output (kW)")
 ax.set_title("Solar Panel Power Output with Weather Adjustments")

@@ -6,9 +6,6 @@ import requests
 import numpy as np
 from datetime import datetime
 import warnings
-# import scienceplots
-
-# plt.style.use(['science','ieee'])
 
 warnings.filterwarnings("ignore")
 
@@ -48,9 +45,6 @@ df = pd.DataFrame(
 
 
 def get_weather_forecast(lat, lon, days=30):
-    """
-    Fetch weather forecast data from Open-Meteo API
-    """
     try:
         url = "https://archive-api.open-meteo.com/v1/archive"
 
@@ -67,7 +61,6 @@ def get_weather_forecast(lat, lon, days=30):
         response.raise_for_status()
         data = response.json()
 
-        # Create DataFrame from hourly data
         weather_df = pd.DataFrame(
             {
                 "time": pd.to_datetime(data["hourly"]["time"]),
@@ -86,7 +79,6 @@ def get_weather_forecast(lat, lon, days=30):
 
 
 def standardize_timezone_index(df):
-    """Ensure datetime index is timezone-aware in the local timezone."""
     df = df.copy()
     df.index = pd.to_datetime(df.index)
     if df.index.tz is None:
@@ -97,10 +89,6 @@ def standardize_timezone_index(df):
 
 
 def generate_synthetic_weather(lat, lon, num_days=5):
-    """
-    Generate synthetic but realistic weather data for solar prediction.
-    Based on typical weather patterns for Hamilton, NZ (Spring weather).
-    """
     dates = pd.date_range(
         "2026-09-03", periods=num_days * 24, freq="h", tz="Pacific/Auckland"
     )
@@ -112,7 +100,7 @@ def generate_synthetic_weather(lat, lon, num_days=5):
 
     # Add daily variation (some days cloudier than others)
     day_num = np.arange(len(dates))
-    daily_pattern = 15 * np.sin(day_num * np.pi / 7)  # Weekly pattern
+    daily_pattern = 15 * np.sin(day_num * np.pi / 7)
     cloud_cover = cloud_cover + daily_pattern
     cloud_cover = np.clip(cloud_cover, 0, 100)
 
@@ -152,8 +140,12 @@ def apply_weather_adjustments(irradiance, weather_df):
     cloud_factor = np.maximum(cloud_factor.to_numpy(), 0.05)
 
     # Soiling factor (precipitation cleans panels, dust increases over time)
-    soiling = 0.98 - (np.arange(len(weather_aligned)) / max(len(weather_aligned), 1)) * 0.05
-    rain_factor = 1.0 + (weather_aligned["precipitation"] > 0).astype(float).to_numpy() * 0.02
+    soiling = (
+        0.98 - (np.arange(len(weather_aligned)) / max(len(weather_aligned), 1)) * 0.05
+    )
+    rain_factor = (
+        1.0 + (weather_aligned["precipitation"] > 0).astype(float).to_numpy() * 0.02
+    )
 
     # Combine all factors
     total_factor = cloud_factor * soiling * rain_factor
@@ -162,11 +154,11 @@ def apply_weather_adjustments(irradiance, weather_df):
     return pd.Series(adjusted_irradiance, index=irradiance.index, name=irradiance.name)
 
 
-# Fetch/Generate weather data
 print("Fetching weather data...")
-weather_data = standardize_timezone_index(get_weather_forecast(site.latitude, site.longitude))
+weather_data = standardize_timezone_index(
+    get_weather_forecast(site.latitude, site.longitude)
+)
 
-# Resample weather data to match 15-min solar data resolution and align timestamps
 weather_resampled = weather_data.resample("15min").interpolate(method="linear")
 weather_resampled = weather_resampled.reindex(poa_irrad["poa_global"].index)
 weather_resampled = weather_resampled.interpolate(method="time").ffill().bfill()
@@ -179,18 +171,14 @@ adjusted_poa_irrad = apply_weather_adjustments(
 # Recalculate power output with weather adjustments
 adjusted_power_watts = adjusted_poa_irrad * array_kw_rating
 
-# Add weather data to DataFrame
 df["Cloud_Cover_%"] = weather_resampled["cloud_cover"]
 df["Precipitation_mm"] = weather_resampled["precipitation"]
 df["Adjusted_POA_Irradiance"] = adjusted_poa_irrad
 df["Adjusted_Power_W"] = adjusted_power_watts
-df["Weather_Factor"] = adjusted_poa_irrad / (
-    poa_irrad["poa_global"] + 1e-6
-)
+df["Weather_Factor"] = adjusted_poa_irrad / (poa_irrad["poa_global"] + 1e-6)
 
 
 def get_power_output(timestamp=None):
-    """Return the weather-adjusted solar power forecast in watts."""
     if timestamp is None:
         timestamp = pd.Timestamp.now(tz=site.tz)
     else:
@@ -203,6 +191,7 @@ def get_power_output(timestamp=None):
     timestamp = min(max(timestamp, df.index[0]), df.index[-1])
     forecast_index = df.index.get_indexer([timestamp], method="nearest")[0]
     return float(df["Adjusted_Power_W"].iloc[forecast_index])
+
 
 print(f"Weather prediction added with {len(weather_data)} hourly records")
 print(f"\nWeather Data Summary:")
@@ -218,7 +207,6 @@ fig.suptitle(
     fontweight="bold",
 )
 
-# Plot 1: Power Output (Clear-sky vs Weather-adjusted)
 ax = axes[0]
 df.index.name = "Time"
 ax.plot(
@@ -231,14 +219,15 @@ ax.plot(
     linewidth=2,
     color="orange",
 )
-ax.axhline(2 / 1000, color="red", linestyle="--", linewidth=1.5, label="Minimum Power (2 W)")
+ax.axhline(
+    2 / 1000, color="red", linestyle="--", linewidth=1.5, label="Minimum Power (2 W)"
+)
 ax.fill_between(df.index, 0, df["Adjusted_Power_W"] / 1000, alpha=0.2, color="orange")
 ax.set_ylabel("Power Output (kW)")
 ax.set_title("Solar Panel Power Output with Weather Adjustments")
 ax.legend(loc="upper right")
 ax.grid(True, alpha=0.3)
 
-# Plot 2: Cloud Cover & Precipitation
 ax = axes[1]
 ax2 = ax.twinx()
 ax.bar(
@@ -264,7 +253,6 @@ ax.tick_params(axis="y", labelcolor="blue")
 ax2.tick_params(axis="y", labelcolor="cyan")
 ax.grid(True, alpha=0.3)
 
-# Plot 3: Weather Impact Factor
 ax = axes[2]
 ax.plot(
     df.index,

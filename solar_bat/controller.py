@@ -5,6 +5,7 @@ from time import sleep, time
 from ina219 import INA219
 import time
 # user modules
+# import creds
 import clearsky_solar_pred
 import load
 
@@ -33,7 +34,7 @@ BAT_SENSOR_ADDR = 0x41
 INTERVAL     = 5.0    # s: normal loop period
 FORECAST_HOURS = 48     # Number of future hourly net-power values to use
 
-API_KEY      = creds.API_KEY if creds else ""
+API_KEY      = creds.API_KEY
 TS_URL       = "https://api.thingspeak.com/update"
 UPLOAD_INTVL = 15     # s: ThingSpeak free-tier minimum
 
@@ -85,7 +86,7 @@ def read_ina_sensor(sensor):
         v = sensor.voltage()
         i = sensor.current()
         if v < V_MIN:
-            return 0.0, 0.0
+            return 0.0
         return v, i
     except Exception:
         return 0.0, 0.0
@@ -195,6 +196,5 @@ def main():
         load_off()
         GPIO.cleanup()
 
-
-    if __name__ == "__main__":
-        main()
+if __name__ == "__main__":
+    main()
